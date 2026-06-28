@@ -8,22 +8,31 @@ Il motore di trascrizione offline si basa su **Sherpa-ONNX** (con modelli Whispe
 
 ## Caratteristiche Principali
 
-- 🎙️ **Trascrizione Completamente Offline**: Nessun dato viene inviato a server esterni. La trascrizione avviene interamente sul tuo computer per la massima privacy.
-- ⚡ **Ottimizzazione VAD (Voice Activity Detection)**: Sfrutta Silero VAD per suddividere l'audio solo in presenza di voce reale. Questo velocizza drasticamente la decodifica ed evita loop di allucinazione nei modelli Whisper.
-- 🗂️ **Elaborazione di Singoli File o Cartelle**: Supporta la trascrizione in batch di intere directory contenenti file multimediali.
-- 🛠️ **Pannello Impostazioni Dedicato**:
-  - Selezione del modello ASR preferito.
-  - Selezione della lingua parlata.
-  - Definizione di una cartella di output personalizzata per i file salvati.
-- 📊 **Monitoraggio in Tempo Reale**:
-  - Trascrizione live divisa per segmenti visibile all'interno di un comodo **Accordion comprimibile**.
-  - Calcolo del tempo effettivo impiegato per la trascrizione (con indicazione di orario inizio, fine e durata totale).
-- 💾 **Formati di Esportazione**:
-  - **SRT** (Sottotitoli standard SubRip)
-  - **WebVTT** (Sottotitoli per il Web)
-  - **TXT (senza timestamp)**: Testo pulito e continuo.
-  - **TXT (con timestamp)**: Testo semplice con indicazione temporale dei segmenti (`[HH:MM:SS.mmm --> HH:MM:SS.mmm]`).
-  - **Tutti i formati**: Genera simultaneamente file `.txt`, `.srt` e `.vtt`.
+* 🎙️ **Trascrizione 100% Offline & Privata**
+  Nessun dato viene mai inviato all'esterno. Tutto il processo di elaborazione audio e decodifica avviene localmente sul proprio computer, garantendo la massima riservatezza per le proprie registrazioni.
+
+* ⚡ **Algoritmo di Segmentazione Intelligente (VAD)**
+  Integra il sistema di Voice Activity Detection **Silero VAD**. Questa tecnologia analizza l'audio e lo suddivide in segmenti focalizzandosi solo dove rileva parlato effettivo. Previene rallentamenti del modello ASR, ottimizza i tempi di calcolo ed evita che Whisper generi "allucinazioni" o cicli di parole ripetute nei momenti di silenzio.
+
+* 🗂️ **Modalità Singola o in Batch (Cartelle)**
+  Offre flessibilità sia per elaborare un singolo file audio/video, sia per automatizzare la trascrizione massiva di intere cartelle contenenti più registrazioni.
+
+* ⚙️ **Impostazioni di Configurazione Avanzate**
+  Una sezione dedicata permette di regolare a piacimento:
+  - Il modello ASR offline preferito (Whisper Tiny, Parakeet 110M, Parakeet V3).
+  - La lingua parlata nell'audio (con rilevamento automatico o impostazione fissa).
+  - La cartella personalizzata in cui salvare automaticamente i file di testo e i sottotitoli generati.
+
+* 📊 **Monitoraggio e Statistiche Live**
+  - I segmenti trascritti vengono visualizzati in tempo reale all'interno di un pratico **Accordion richiudibile** per non ingombrare l'interfaccia.
+  - Al termine del processo viene stampato un report dettagliato con **orario esatto di inizio, fine e durata complessiva** dell'elaborazione.
+
+* 💾 **Esportazioni Flessibili in Più Formati**
+  - **SRT** (.srt): Sottotitoli standard con millisecondi formattati per i lettori video.
+  - **WebVTT** (.vtt): Sottotitoli compatibili con i lettori HTML5 web.
+  - **TXT (Solo Testo)**: Un file di testo pulito e continuo ideale da leggere o dare in pasto a strumenti di sintesi.
+  - **TXT (Con Timestamp)**: Mantiene indicazioni chiare del tempo per ciascun segmento (`[HH:MM:SS.mmm --> HH:MM:SS.mmm]`).
+  - **Tutti i formati**: Genera contemporaneamente tutti i file sopra citati con un solo clic.
 
 ---
 
@@ -86,3 +95,18 @@ wails3 build
 task build
 ```
 L'eseguibile generato si troverà all'interno della cartella `build/`.
+
+---
+
+## Credits
+
+Questo progetto è stato reso possibile grazie all'integrazione di eccezionali tecnologie open source:
+
+- **[Wails v3](https://v3.wails.io/)**: Per il fantastico framework desktop leggero basato su Go e motori Web nativi.
+- **[Sherpa-ONNX](https://github.com/k2-fsa/sherpa-onnx)**: Il motore di inferenza offline che permette di eseguire modelli ASR senza dipendenze pesanti come Python.
+- **[Silero VAD](https://github.com/snakers4/silero-vad)**: Il modello di Voice Activity Detection ad altissime prestazioni per la segmentazione della voce.
+- **[OpenAI Whisper](https://github.com/openai/whisper)**: Per l'architettura dei modelli di trascrizione multilingua.
+- **[NVIDIA NeMo Parakeet](https://huggingface.co/nvidia)**: Per i modelli ASR basati su CTC/TDT veloci e accurati.
+- **[FFmpeg](https://ffmpeg.org/)**: Per la gestione e la conversione dei flussi audio dei file multimediali.
+
+Sviluppato e mantenuto da **[mdmiko](https://github.com/mdmiko)**.
