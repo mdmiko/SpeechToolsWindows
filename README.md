@@ -1,59 +1,88 @@
-# Welcome to Your New Wails3 Project!
+# SpeechTranscriber
 
-Congratulations on generating your Wails3 application! This README will guide you through the next steps to get your project up and running.
+SpeechTranscriber è un'applicazione desktop offline per la trascrizione automatica di file audio e video. È sviluppata in **Go** e **Wails v3** per il backend, accoppiata a un frontend interattivo in HTML5/CSS3/JavaScript. 
 
-## Getting Started
+Il motore di trascrizione offline si basa su **Sherpa-ONNX** (con modelli Whisper e Parakeet di NVIDIA) e utilizza **Silero VAD** per la segmentazione intelligente del parlato, garantendo un'elaborazione veloce ed efficiente anche per file audio di lunga durata (es. registrazioni superiori a un'ora).
 
-1. Navigate to your project directory in the terminal.
+---
 
-2. To run your application in development mode, use the following command:
+## Caratteristiche Principali
 
-   ```
-   wails3 dev
-   ```
+- 🎙️ **Trascrizione Completamente Offline**: Nessun dato viene inviato a server esterni. La trascrizione avviene interamente sul tuo computer per la massima privacy.
+- ⚡ **Ottimizzazione VAD (Voice Activity Detection)**: Sfrutta Silero VAD per suddividere l'audio solo in presenza di voce reale. Questo velocizza drasticamente la decodifica ed evita loop di allucinazione nei modelli Whisper.
+- 🗂️ **Elaborazione di Singoli File o Cartelle**: Supporta la trascrizione in batch di intere directory contenenti file multimediali.
+- 🛠️ **Pannello Impostazioni Dedicato**:
+  - Selezione del modello ASR preferito.
+  - Selezione della lingua parlata.
+  - Definizione di una cartella di output personalizzata per i file salvati.
+- 📊 **Monitoraggio in Tempo Reale**:
+  - Trascrizione live divisa per segmenti visibile all'interno di un comodo **Accordion comprimibile**.
+  - Calcolo del tempo effettivo impiegato per la trascrizione (con indicazione di orario inizio, fine e durata totale).
+- 💾 **Formati di Esportazione**:
+  - **SRT** (Sottotitoli standard SubRip)
+  - **WebVTT** (Sottotitoli per il Web)
+  - **TXT (senza timestamp)**: Testo pulito e continuo.
+  - **TXT (con timestamp)**: Testo semplice con indicazione temporale dei segmenti (`[HH:MM:SS.mmm --> HH:MM:SS.mmm]`).
+  - **Tutti i formati**: Genera simultaneamente file `.txt`, `.srt` e `.vtt`.
 
-   This will start your application and enable hot-reloading for both frontend and backend changes.
+---
 
-3. To build your application for production, use:
+## Modelli Supportati
 
-   ```
-   wails3 build
-   ```
+Durante la prima configurazione o tramite le impostazioni, l'app consente di scaricare e installare offline i seguenti modelli ASR:
+1. **Whisper Tiny (~75MB - Multilingua)**: Modello OpenAI ottimizzato per CPU. Ottimo equilibrio tra velocità e accuratezza.
+2. **NVIDIA Parakeet 110M (~110MB - Solo Inglese)**: Estremamente veloce ed efficiente per la lingua inglese.
+3. **NVIDIA Parakeet V3 (~670MB - Multilingua/Italiano)**: Modello avanzato ad alta accuratezza per la lingua italiana e internazionale.
 
-   This will create a production-ready executable in the `build` directory.
+---
 
-## Exploring Wails3 Features
+## Requisiti di Sistema
 
-Now that you have your project set up, it's time to explore the features that Wails3 offers:
+- **Sorgente audio/video**: Supporta `.mp3`, `.wav`, `.m4a`, `.mp4`, `.mkv`, `.avi`, `.webm`, `.ogg`.
+- **FFmpeg**: Necessario per convertire automaticamente i file multimediali in formato WAV compatibile (16kHz mono). Se non è presente nel PATH di sistema, l'applicazione cercherà un eseguibile `ffmpeg.exe` all'interno della cartella `bin/`.
 
-1. **Check out the examples**: The best way to learn is by example. Visit the `examples` directory in the `v3/examples` directory to see various sample applications.
+---
 
-2. **Run an example**: To run any of the examples, navigate to the example's directory and use:
+## Struttura del Progetto
 
-   ```
-   go run .
-   ```
+```
+SpeechToolsWindows/
+├── bin/                       # Contiene i binari scaricati (sherpa-onnx, ffmpeg)
+├── models/                    # Cartella di download dei modelli ASR e VAD (.onnx)
+├── frontend/                  # Codice dell'interfaccia utente
+│   ├── public/
+│   │   └── style.css          # Fogli di stile personalizzati (dark mode e layout responsive)
+│   ├── src/
+│   │   └── main.js            # Logica frontend e gestione degli eventi Wails
+│   └── index.html             # Layout dell'applicazione
+├── main.go                    # Entry point dell'applicazione Go
+├── transcription_service.go   # Servizio backend in Go per coordinare FFmpeg e Sherpa-ONNX
+└── Taskfile.yml               # Script di automazione per build e sviluppo
+```
 
-   Note: Some examples may be under development during the alpha phase.
+---
 
-3. **Explore the documentation**: Visit the [Wails3 documentation](https://v3.wails.io/) for in-depth guides and API references.
+## Istruzioni per lo Sviluppo
 
-4. **Join the community**: Have questions or want to share your progress? Join the [Wails Discord](https://discord.gg/JDdSxwjhGf) or visit the [Wails discussions on GitHub](https://github.com/wailsapp/wails/discussions).
+### Prerequisiti
+- **Go 1.21+**
+- **Node.js** (per il frontend)
+- Strumento CLI di **Wails v3** (istallato tramite `go install github.com/wailsapp/wails/v3/cmd/wails3@latest`)
+- (Opzionale) **Task** per eseguire i comandi da Taskfile.
 
-## Project Structure
+### Esecuzione in modalità Sviluppo
+Avvia l'applicazione con ricaricamento a caldo (hot-reload) sia per il frontend che per il backend:
+```bash
+wails3 dev
+# Oppure utilizzando task
+task dev
+```
 
-Take a moment to familiarize yourself with your project structure:
-
-- `frontend/`: Contains your frontend code (HTML, CSS, JavaScript/TypeScript)
-- `main.go`: The entry point of your Go backend
-- `app.go`: Define your application structure and methods here
-- `wails.json`: Configuration file for your Wails project
-
-## Next Steps
-
-1. Modify the frontend in the `frontend/` directory to create your desired UI.
-2. Add backend functionality in `main.go`.
-3. Use `wails3 dev` to see your changes in real-time.
-4. When ready, build your application with `wails3 build`.
-
-Happy coding with Wails3! If you encounter any issues or have questions, don't hesitate to consult the documentation or reach out to the Wails community.
+### Compilazione per la Produzione
+Per compilare l'eseguibile ottimizzato:
+```bash
+wails3 build
+# Oppure utilizzando task
+task build
+```
+L'eseguibile generato si troverà all'interno della cartella `build/`.
