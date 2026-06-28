@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <link rel="stylesheet" href="/style.css"/>
+    <title>Trascrizione Audio & Video</title>
+</head>
+<body>
+<div class="app-container">
+    <header>
+        <h1>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" x2="12" y1="19" y2="22"></line>
+            </svg>
+            SpeechTranscriber
+        </h1>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="status-badge">
+                <span class="status-dot" id="status-dot"></span>
+                <span id="status-text">Verifica in corso...</span>
+            </div>
+            <button class="btn btn-secondary" id="btn-toggle-settings" onclick="toggleSettings()" style="padding: 6px 12px; border-radius: 9999px; font-size: 0.8rem; display: flex; align-items: center; gap: 4px; font-weight: 600;">
+                ⚙️ Impostazioni
+            </button>
+        </div>
+    </header>
+
+    <!-- SCHERMATA SETUP / DOWNLOAD COMPONENTI / IMPOSTAZIONI -->
+    <div class="card setup-view hidden" id="setup-card" style="text-align: left; padding: 24px;">
+        <h2 class="setup-title" style="text-align: center; margin-bottom: 8px;">Impostazioni e Setup</h2>
+        <p class="setup-desc" style="text-align: center; margin-bottom: 24px;">Configura le opzioni globali della trascrizione e installa i modelli offline necessari.</p>
+        
+        <div class="form-grid" style="margin-bottom: 20px;">
+            <!-- Modello ASR -->
+            <div class="form-group">
+                <label>Modello ASR</label>
+                <select id="select-model" onchange="onModelChanged(this.value)">
+                    <option value="whisper-tiny">Whisper Tiny (~75MB - Multilingua)</option>
+                    <option value="parakeet-110m">NVIDIA Parakeet 110M (~110MB - Solo Inglese)</option>
+                    <option value="parakeet-v3-multi">NVIDIA Parakeet V3 (~670MB - Multilingua/Italiano)</option>
+                </select>
+            </div>
+
+            <!-- Lingua del Parlato -->
+            <div class="form-group">
+                <label>Lingua del Parlato</label>
+                <select id="select-lang">
+                    <option value="it">Italiano (it)</option>
+                    <option value="en">Inglese (en)</option>
+                    <option value="es">Spagnolo (es)</option>
+                    <option value="fr">Francese (fr)</option>
+                    <option value="de">Tedesco (de)</option>
+                    <option value="auto">Rilevamento Automatico</option>
+                </select>
+            </div>
+
+            <!-- Cartella personalizzata di output -->
+            <div class="form-group full-width" style="margin-top: 10px;">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="chk-custom-output" onchange="toggleCustomOutput(this.checked)"/>
+                    Salva le trascrizioni in una cartella specifica
+                </label>
+                <div class="input-row hidden" id="custom-output-row" style="margin-top: 8px;">
+                    <input type="text" id="custom-output-path" placeholder="Seleziona la cartella di destinazione..." readonly/>
+                    <button class="btn btn-secondary" onclick="browseCustomOutput()">Sfoglia</button>
+                </div>
+            </div>
+        </div>
+
+        <h3 style="font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; font-weight: 600;">Stato dei Componenti</h3>
+        <div class="setup-list" style="margin: 0 0 20px 0; max-width: none;">
+            <div class="setup-item">
+                <span class="status-dot" id="chk-sherpa"></span>
+                <span>Sherpa-ONNX Engine</span>
+            </div>
+            <div class="setup-item">
+                <span class="status-dot" id="chk-model"></span>
+                <span>Modello ASR</span>
+            </div>
+            <div class="setup-item">
+                <span class="status-dot" id="chk-ffmpeg"></span>
+                <span>Convertitore FFmpeg (opzionale per MP3/MP4)</span>
+            </div>
+        </div>
+
+        <div id="setup-action-area" style="display: flex; gap: 12px;">
+            <button class="btn btn-secondary" onclick="toggleSettings()" style="flex: 1;">
+                ← Indietro
+            </button>
+            <button class="btn btn-accent" id="btn-setup" onclick="startSetup()" style="flex: 1;">
+                Installa / Aggiorna Modello
+            </button>
+        </div>
+
+        <div class="progress-panel hidden" id="setup-progress-panel" style="margin-top: 20px;">
+            <div class="progress-info">
+                <span id="setup-progress-msg">Download in corso...</span>
+                <span id="setup-progress-pct">0%</span>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="setup-progress-bar" style="width: 0%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCHERMATA PRINCIPALE DI TRASCRIZIONE -->
+    <div class="card hidden" id="transcribe-card">
+        <div class="form-grid">
+            <!-- File o Cartella -->
+            <div class="form-group full-width">
+                <label>Tipo di sorgente</label>
+                <div class="toggle-group" id="source-toggle">
+                    <div class="toggle-option active" id="opt-file" onclick="setSourceType(false)">Singolo File</div>
+                    <div class="toggle-option" id="opt-folder" onclick="setSourceType(true)">Cartella</div>
+                </div>
+            </div>
+
+            <!-- Selettore Percorso -->
+            <div class="form-group full-width">
+                <label id="lbl-path">File Audio/Video</label>
+                <div class="input-row">
+                    <input type="text" id="input-path" placeholder="Seleziona un file..." readonly/>
+                    <button class="btn btn-secondary" onclick="browseSource()">Sfoglia</button>
+                </div>
+            </div>
+
+            <!-- Formato -->
+            <div class="form-group full-width">
+                <label>Formato di Esportazione</label>
+                <select id="select-format">
+                    <option value="srt">Sottotitoli SubRip (.srt)</option>
+                    <option value="txt">Testo semplice senza timestamp (.txt)</option>
+                    <option value="txt-time">Testo semplice con timestamp (.txt)</option>
+                    <option value="vtt">Sottotitoli WebVTT (.vtt)</option>
+                    <option value="all">Tutti i formati (.txt, .srt, .vtt)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Pulsante di avvio -->
+        <div class="flex-row justify-end" id="control-buttons">
+            <button class="btn btn-accent" id="btn-start" onclick="startTranscription()">
+                Avvia Trascrizione
+            </button>
+        </div>
+
+        <!-- Pannello avanzamento trascrizione -->
+        <div class="progress-panel hidden" id="transcribe-progress-panel">
+            <div class="progress-info">
+                <span id="transcribe-file-info">Conversione audio...</span>
+                <span id="transcribe-progress-pct">0%</span>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="transcribe-progress-bar" style="width: 0%;"></div>
+            </div>
+            <div class="flex-row justify-end" style="margin-top: 8px;">
+                <button class="btn btn-danger" id="btn-cancel" onclick="cancelTranscription()">
+                    Annulla
+                </button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <details class="accordion-details" open>
+                <summary class="accordion-summary">
+                    <span>Trascrizione in tempo reale (Segmenti)</span>
+                    <span class="accordion-icon">▼</span>
+                </summary>
+                <div class="terminal-box" id="terminal-log" style="margin-top: 10px;">
+                    <div class="terminal-line system">I log e i segmenti trascritti compariranno qui...</div>
+                </div>
+            </details>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
