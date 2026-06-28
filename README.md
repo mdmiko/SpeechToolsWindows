@@ -8,31 +8,31 @@ Il motore di trascrizione offline si basa su **Sherpa-ONNX** (con modelli Whispe
 
 ## Caratteristiche Principali
 
-* 🎙️ **Trascrizione 100% Offline & Privata**
-  Nessun dato viene mai inviato all'esterno. Tutto il processo di elaborazione audio e decodifica avviene localmente sul proprio computer, garantendo la massima riservatezza per le proprie registrazioni.
+### 🎙️ Trascrizione 100% Offline & Privata
+Nessun dato viene mai inviato all'esterno. Tutto il processo di elaborazione audio e decodifica avviene localmente sul proprio computer, garantendo la massima riservatezza per le proprie registrazioni.
 
-* ⚡ **Algoritmo di Segmentazione Intelligente (VAD)**
-  Integra il sistema di Voice Activity Detection **Silero VAD**. Questa tecnologia analizza l'audio e lo suddivide in segmenti focalizzandosi solo dove rileva parlato effettivo. Previene rallentamenti del modello ASR, ottimizza i tempi di calcolo ed evita che Whisper generi "allucinazioni" o cicli di parole ripetute nei momenti di silenzio.
+### ⚡ Algoritmo di Segmentazione Intelligente (VAD)
+Integra il sistema di Voice Activity Detection **Silero VAD**. Questa tecnologia analizza l'audio e lo suddivide in segmenti focalizzandosi solo dove rileva parlato effettivo. Previene rallentamenti del modello ASR, ottimizza i tempi di calcolo ed evita che Whisper generi "allucinazioni" o cicli di parole ripetute nei momenti di silenzio.
 
-* 🗂️ **Modalità Singola o in Batch (Cartelle)**
-  Offre flessibilità sia per elaborare un singolo file audio/video, sia per automatizzare la trascrizione massiva di intere cartelle contenenti più registrazioni.
+### 🗂️ Modalità Singola o in Batch (Cartelle)
+Offre flessibilità sia per elaborare un singolo file audio/video, sia per automatizzare la trascrizione massiva di intere cartelle contenenti più registrazioni.
 
-* ⚙️ **Impostazioni di Configurazione Avanzate**
-  Una sezione dedicata permette di regolare a piacimento:
-  - Il modello ASR offline preferito (Whisper Tiny, Parakeet 110M, Parakeet V3).
-  - La lingua parlata nell'audio (con rilevamento automatico o impostazione fissa).
-  - La cartella personalizzata in cui salvare automaticamente i file di testo e i sottotitoli generati.
+### ⚙️ Impostazioni di Configurazione Avanzate
+Una sezione dedicata permette di regolare a piacimento:
+- Il modello ASR offline preferito (Whisper Tiny, Parakeet 110M, Parakeet V3).
+- La lingua parlata nell'audio (con rilevamento automatico o impostazione fissa).
+- La cartella personalizzata in cui salvare automaticamente i file di testo e i sottotitoli generati.
 
-* 📊 **Monitoraggio e Statistiche Live**
-  - I segmenti trascritti vengono visualizzati in tempo reale all'interno di un pratico **Accordion richiudibile** per non ingombrare l'interfaccia.
-  - Al termine del processo viene stampato un report dettagliato con **orario esatto di inizio, fine e durata complessiva** dell'elaborazione.
+### 📊 Monitoraggio e Statistiche Live
+- I segmenti trascritti vengono visualizzati in tempo reale all'interno di un pratico **Accordion richiudibile** per non ingombrare l'interfaccia.
+- Al termine del processo viene stampato un report dettagliato con **orario esatto di inizio, fine e durata complessiva** dell'elaborazione.
 
-* 💾 **Esportazioni Flessibili in Più Formati**
-  - **SRT** (.srt): Sottotitoli standard con millisecondi formattati per i lettori video.
-  - **WebVTT** (.vtt): Sottotitoli compatibili con i lettori HTML5 web.
-  - **TXT (Solo Testo)**: Un file di testo pulito e continuo ideale da leggere o dare in pasto a strumenti di sintesi.
-  - **TXT (Con Timestamp)**: Mantiene indicazioni chiare del tempo per ciascun segmento (`[HH:MM:SS.mmm --> HH:MM:SS.mmm]`).
-  - **Tutti i formati**: Genera contemporaneamente tutti i file sopra citati con un solo clic.
+### 💾 Esportazioni Flessibili in Più Formati
+- **SRT** (.srt): Sottotitoli standard con millisecondi formattati per i lettori video.
+- **WebVTT** (.vtt): Sottotitoli compatibili con i lettori HTML5 web.
+- **TXT (Solo Testo)**: Un file di testo pulito e continuo ideale da leggere o dare in pasto a strumenti di sintesi.
+- **TXT (Con Timestamp)**: Mantiene indicazioni chiare del tempo per ciascun segmento (`[HH:MM:SS.mmm --> HH:MM:SS.mmm]`).
+- **Tutti i formati**: Genera contemporaneamente tutti i file sopra citati con un solo clic.
 
 ---
 
