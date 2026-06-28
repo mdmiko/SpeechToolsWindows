@@ -745,10 +745,33 @@ func saveTranscriptionFiles(rawText, outputDir, baseName, format string) error {
 	return nil
 }
 
-// Rimuove i timestamp tipo [00:12.100 --> 00:15.300] o [01:02:03.100 --> 01:02:05.300] per produrre testo pulito
+// Helper per convertire secondi float in formato SRT (HH:MM:SS,mmm)
+func formatSecondsToSRTTime(sec float64) string {
+	hours := int(sec) / 3600
+	minutes := (int(sec) % 3600) / 60
+	seconds := int(sec) % 60
+	ms := int((sec - float64(int(sec))) * 1000)
+	return fmt.Sprintf("%02d:%02d:%02d,%03d", hours, minutes, seconds, ms)
+}
+
+// Helper per convertire secondi float in formato WebVTT (HH:MM:SS.mmm)
+func formatSecondsToVTTTime(sec float64) string {
+	hours := int(sec) / 3600
+	minutes := (int(sec) % 3600) / 60
+	seconds := int(sec) % 60
+	ms := int((sec - float64(int(sec))) * 1000)
+	return fmt.Sprintf("%02d:%02d:%02d.%03d", hours, minutes, seconds, ms)
+}
+
+// Rimuove i timestamp tipo [00:12.100 --> 00:15.300] o 154.182 -- 262.684: per produrre testo pulito
 func removeTimestamps(input string) string {
-	re := regexp.MustCompile(`\[\d{2}(?::\d{2})?:\d{2}\.\d{3}\s*-->\s*\d{2}(?::\d{2})?:\d{2}\.\d{3}\]\s*`)
-	return re.ReplaceAllString(input, "")
+	// Formato Whisper: [00:12.300 --> 00:15.200]
+	reWhisper := regexp.MustCompile(`\[\d{2}(?::\d{2})?:\d{2}\.\d{3}\s*-->\s*\d{2}(?::\d{2})?:\d{2}\.\d{3}\]`)
+	// Formato Parakeet/altri: 154.182 -- 262.684:
+	reParakeet := regexp.MustCompile(`\d+(?:\.\d+)?\s*--\s*\d+(?:\.\d+)?:\s*`)
+	
+	temp := reWhisper.ReplaceAllString(input, "")
+	return reParakeet.ReplaceAllString(temp, "")
 }
 
 // Converte l'output di sherpa con i timestamp in formato SRT standard
@@ -757,12 +780,13 @@ func convertToSRT(input string) string {
 	var srtLines []string
 	counter := 1
 
-	// Regex per catturare sia [MM:SS.mmm --> MM:SS.mmm] sia [HH:MM:SS.mmm --> HH:MM:SS.mmm]
-	re := regexp.MustCompile(`\[(?:(\d{2}):)?(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(?:(\d{2}):)?(\d{2}):(\d{2})\.(\d{3})\]\s*(.*)`)
+	// Regex per formato Whisper: [MM:SS.mmm --> MM:SS.mmm] o [HH:MM:SS.mmm --> HH:MM:SS.mmm]
+	reWhisper := regexp.MustCompile(`\[(?:(\d{2}):)?(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(?:(\d{2}):)?(\d{2}):(\d{2})\.(\d{3})\]\s*(.*)`)
+	// Regex per formato Parakeet: 154.182 -- 262.684: Testo
+	reParakeet := regexp.MustCompile(`(\d+(?:\.\d+)?)\s*--\s*(\d+(?:\.\d+)?):\s*(.*)`)
 
 	for _, line := range lines {
-		matches := re.FindStringSubmatch(line)
-		if len(matches) >= 10 {
+		if matches := reWhisper.FindStringSubmatch(line); len(matches) >= 10 {
 			hrStart := matches[1]
 			if hrStart == "" {
 				hrStart = "00"
@@ -776,7 +800,6 @@ func convertToSRT(input string) string {
 			minEnd, secEnd, msEnd := matches[6], matches[7], matches[8]
 			text := matches[9]
 
-			// SRT richiede ore:minuti:secondi,millisecondi
 			srtStart := fmt.Sprintf("%s:%s:%s,%s", hrStart, minStart, secStart, msStart)
 			srtEnd := fmt.Sprintf("%s:%s:%s,%s", hrEnd, minEnd, secEnd, msEnd)
 
@@ -785,7 +808,20 @@ func convertToSRT(input string) string {
 			srtLines = append(srtLines, text)
 			srtLines = append(srtLines, "") // Riga vuota separatrice
 			counter++
-		} else if strings.TrimSpace(line) != "" && !strings.Contains(line, "-->") {
+		} else if matches := reParakeet.FindStringSubmatch(line); len(matches) >= 4 {
+			startSec, _ := strconv.ParseFloat(matches[1], 64)
+			endSec, _ := strconv.ParseFloat(matches[2], 64)
+			text := matches[3]
+
+			srtStart := formatSecondsToSRTTime(startSec)
+			srtEnd := formatSecondsToSRTTime(endSec)
+
+			srtLines = append(srtLines, strconv.Itoa(counter))
+			srtLines = append(srtLines, fmt.Sprintf("%s --> %s", srtStart, srtEnd))
+			srtLines = append(srtLines, text)
+			srtLines = append(srtLines, "")
+			counter++
+		} else if strings.TrimSpace(line) != "" && !strings.Contains(line, "-->") && !strings.Contains(line, "--") {
 			// Riga di testo senza timestamp, la accodiamo all'ultimo blocco se esiste
 			if len(srtLines) > 0 {
 				lastIdx := len(srtLines) - 2
@@ -797,7 +833,6 @@ func convertToSRT(input string) string {
 	}
 
 	if len(srtLines) == 0 {
-		// Fallback: se non ci sono timestamp, crea un'unica riga fittizia
 		return fmt.Sprintf("1\n00:00:00,000 --> 00:05:00,000\n%s\n", input)
 	}
 
@@ -811,12 +846,11 @@ func convertToVTT(input string) string {
 	vttLines = append(vttLines, "WEBVTT")
 	vttLines = append(vttLines, "")
 
-	// Nota: usiamo lo stesso regex robusto per i due formati
-	reRobust := regexp.MustCompile(`\[(?:(\d{2}):)?(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(?:(\d{2}):)?(\d{2}):(\d{2})\.(\d{3})\]\s*(.*)`)
+	reWhisper := regexp.MustCompile(`\[(?:(\d{2}):)?(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(?:(\d{2}):)?(\d{2}):(\d{2})\.(\d{3})\]\s*(.*)`)
+	reParakeet := regexp.MustCompile(`(\d+(?:\.\d+)?)\s*--\s*(\d+(?:\.\d+)?):\s*(.*)`)
 
 	for _, line := range lines {
-		matches := reRobust.FindStringSubmatch(line)
-		if len(matches) >= 10 {
+		if matches := reWhisper.FindStringSubmatch(line); len(matches) >= 10 {
 			hrStart := matches[1]
 			if hrStart == "" {
 				hrStart = "00"
@@ -832,6 +866,17 @@ func convertToVTT(input string) string {
 
 			vttStart := fmt.Sprintf("%s:%s:%s.%s", hrStart, minStart, secStart, msStart)
 			vttEnd := fmt.Sprintf("%s:%s:%s.%s", hrEnd, minEnd, secEnd, msEnd)
+
+			vttLines = append(vttLines, fmt.Sprintf("%s --> %s", vttStart, vttEnd))
+			vttLines = append(vttLines, text)
+			vttLines = append(vttLines, "")
+		} else if matches := reParakeet.FindStringSubmatch(line); len(matches) >= 4 {
+			startSec, _ := strconv.ParseFloat(matches[1], 64)
+			endSec, _ := strconv.ParseFloat(matches[2], 64)
+			text := matches[3]
+
+			vttStart := formatSecondsToVTTTime(startSec)
+			vttEnd := formatSecondsToVTTTime(endSec)
 
 			vttLines = append(vttLines, fmt.Sprintf("%s --> %s", vttStart, vttEnd))
 			vttLines = append(vttLines, text)
