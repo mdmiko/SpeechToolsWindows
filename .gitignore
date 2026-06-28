@@ -1,6 +1,38 @@
-.task
-bin
-frontend/dist
-frontend/node_modules
-build/linux/appimage/build
+# Wails and build outputs
+.task/
+bin/
+models/
+frontend/dist/
+frontend/node_modules/
+build/linux/appimage/build/
 build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
+
+# Local OS files
+.DS_Store
+Thumbs.db
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE / Editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Media files and transcriptions (to avoid committing test audio/video)
+*.wav
+*.mp3
+*.m4a
+*.mp4
+*.mkv
+*.avi
+*.webm
+*.ogg
+*.srt
+*.vtt
+temp_transcribe_*
