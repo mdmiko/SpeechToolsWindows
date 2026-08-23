@@ -55,8 +55,8 @@ func main() {
 	// 'BackgroundColour' is the background colour of the window.
 	// 'URL' is the URL that will be loaded into the webview.
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title: "Trascrizione Audio & Video",
-		Width: 800,
+		Title:  "Trascrizione Audio & Video",
+		Width:  800,
 		Height: 580,
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 50,

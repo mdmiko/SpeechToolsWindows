@@ -36,3 +36,6 @@ Thumbs.db
 *.srt
 *.vtt
 temp_transcribe_*
+debug_temp_*
+chunks_*
+*.log

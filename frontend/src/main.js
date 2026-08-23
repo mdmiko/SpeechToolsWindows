@@ -91,6 +91,14 @@ function updateStatusDot(element, installed, isOptional = false) {
 const savedModel = localStorage.getItem("preferred-model") || "whisper-tiny";
 document.getElementById("select-model").value = savedModel;
 
+// Gestione persistenza formato di esportazione
+const savedFormat = localStorage.getItem("preferred-format") || "txt";
+selectFormat.value = savedFormat;
+
+selectFormat.addEventListener("change", (e) => {
+    localStorage.setItem("preferred-format", e.target.value);
+});
+
 // Sincronizza i selettori del modello
 function syncModelSelection(value) {
     localStorage.setItem("preferred-model", value);
@@ -219,6 +227,7 @@ window.startTranscription = async () => {
     };
 
     // Resetta terminale e imposta tempo inizio
+    window.loggedEvents = {};
     transcriptionStartTime = new Date();
     const startTimeStr = transcriptionStartTime.toLocaleTimeString();
     terminalLog.innerHTML = `<div class="terminal-line system">Avvio del flusso di lavoro alle ore ${startTimeStr}...</div>`;
@@ -251,9 +260,23 @@ Events.On("transcribe-progress", (event) => {
     
     if (data.status === "converting") {
         transcribeFileInfo.innerText = `[${data.fileIndex}/${data.totalFiles}] Conversione audio: ${data.currentFile}`;
-        transcribeProgressPct.innerText = "Conversione...";
-        transcribeProgressBar.style.width = "5%";
-        appendLog(`Conversione in formato WAV (16kHz mono): ${data.currentFile}`, "system");
+        if (data.percentage && data.percentage > 0) {
+            const pct = Math.round(data.percentage);
+            transcribeProgressPct.innerText = `Conversione ${pct}%`;
+            transcribeProgressBar.style.width = `${pct}%`;
+        } else {
+            transcribeProgressPct.innerText = "Conversione...";
+            transcribeProgressBar.style.width = "5%";
+        }
+
+        const logId = `converting-${data.fileIndex}`;
+        if (!window.loggedEvents) {
+            window.loggedEvents = {};
+        }
+        if (!window.loggedEvents[logId]) {
+            appendLog(`Conversione in formato WAV (16kHz mono): ${data.currentFile}`, "system");
+            window.loggedEvents[logId] = true;
+        }
     } 
     else if (data.status === "processing") {
         transcribeFileInfo.innerText = `[${data.fileIndex}/${data.totalFiles}] Trascrizione: ${data.currentFile}`;

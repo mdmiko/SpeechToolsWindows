@@ -57,6 +57,18 @@
                 </select>
             </div>
 
+            <!-- Formato di Esportazione -->
+            <div class="form-group full-width">
+                <label>Formato di Esportazione</label>
+                <select id="select-format">
+                    <option value="txt">Testo semplice senza timestamp (.txt)</option>
+                    <option value="txt-time">Testo semplice con timestamp (.txt)</option>
+                    <option value="srt">Sottotitoli SubRip (.srt)</option>
+                    <option value="vtt">Sottotitoli WebVTT (.vtt)</option>
+                    <option value="all">Tutti i formati (.txt, .srt, .vtt)</option>
+                </select>
+            </div>
+
             <!-- Cartella personalizzata di output -->
             <div class="form-group full-width" style="margin-top: 10px;">
                 <label class="checkbox-label">
@@ -125,18 +137,6 @@
                     <input type="text" id="input-path" placeholder="Seleziona un file..." readonly/>
                     <button class="btn btn-secondary" onclick="browseSource()">Sfoglia</button>
                 </div>
-            </div>
-
-            <!-- Formato -->
-            <div class="form-group full-width">
-                <label>Formato di Esportazione</label>
-                <select id="select-format">
-                    <option value="srt">Sottotitoli SubRip (.srt)</option>
-                    <option value="txt">Testo semplice senza timestamp (.txt)</option>
-                    <option value="txt-time">Testo semplice con timestamp (.txt)</option>
-                    <option value="vtt">Sottotitoli WebVTT (.vtt)</option>
-                    <option value="all">Tutti i formati (.txt, .srt, .vtt)</option>
-                </select>
             </div>
         </div>
 

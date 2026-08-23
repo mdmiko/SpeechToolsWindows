@@ -181,22 +181,22 @@ func (s *TranscriptionService) DownloadDependencies(modelType string) error {
 				"message": "Scaricamento dei binari di Sherpa-ONNX (win-x64)...",
 			})
 		}
-		
+
 		tarPath := filepath.Join(binDir, "sherpa-onnx-win-x64.tar.bz2")
 		url := "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.2/sherpa-onnx-v1.13.2-win-x64-shared-MD-Release.tar.bz2"
-		
+
 		err = s.downloadFile(url, tarPath, "download-progress")
 		if err != nil {
 			return fmt.Errorf("errore download binari: %w", err)
 		}
-		
+
 		if app != nil {
 			app.Event.Emit("download-progress", map[string]interface{}{
 				"status":  "extracting",
 				"message": "Estrazione dei binari in corso...",
 			})
 		}
-		
+
 		err = untar(tarPath, binDir)
 		_ = os.Remove(tarPath) // Pulisce il file scaricato
 		if err != nil {
@@ -230,9 +230,9 @@ func (s *TranscriptionService) DownloadDependencies(modelType string) error {
 
 		if !fileExists(encoderPath) || !fileExists(decoderPath) || !fileExists(joinerPath) || !fileExists(tokensPath) {
 			_ = os.MkdirAll(modelFolder, 0755)
-			
+
 			parakeetV3BaseURL := "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/"
-			
+
 			modelFiles := []struct {
 				url  string
 				dest string
@@ -265,9 +265,9 @@ func (s *TranscriptionService) DownloadDependencies(modelType string) error {
 
 		if !fileExists(modelPath) || !fileExists(tokensPath) {
 			_ = os.MkdirAll(modelFolder, 0755)
-			
+
 			parakeetBaseURL := "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet_tdt_ctc_110m-en-36000-int8/resolve/main/"
-			
+
 			modelFiles := []struct {
 				url  string
 				dest string
@@ -300,9 +300,9 @@ func (s *TranscriptionService) DownloadDependencies(modelType string) error {
 
 		if !fileExists(encoderPath) || !fileExists(decoderPath) || !fileExists(tokensPath) {
 			_ = os.MkdirAll(modelFolder, 0755)
-			
+
 			whisperBaseURL := "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny/resolve/main/"
-			
+
 			modelFiles := []struct {
 				url  string
 				dest string
@@ -353,7 +353,7 @@ func (s *TranscriptionService) SelectPath(selectFolder bool) (string, error) {
 			CanChooseFiles(false).
 			PromptForSingleSelection()
 	}
-	
+
 	return app.Dialog.OpenFile().
 		SetTitle("Seleziona File Multimediale").
 		AddFilter("File multimediali", "*.wav;*.mp3;*.m4a;*.mp4;*.mkv;*.avi;*.webm;*.ogg").
@@ -377,7 +377,7 @@ func (s *TranscriptionService) Transcribe(options TranscriptionOptions) error {
 func (s *TranscriptionService) CancelTranscription() error {
 	s.cmdMutex.Lock()
 	defer s.cmdMutex.Unlock()
-	
+
 	if s.activeCmd != nil && s.activeCmd.Process != nil {
 		// Su Windows dobbiamo terminare il processo in modo pulito
 		err := s.activeCmd.Process.Kill()
@@ -433,13 +433,11 @@ func (s *TranscriptionService) runTranscriptionWorkflow(options TranscriptionOpt
 	}
 
 	appDir, _ := s.GetAppDir()
-	sherpaExe := filepath.Join(appDir, "bin", "sherpa-onnx-vad-with-offline-asr.exe")
-	
-
 
 	// Esegui per ciascun file
 	for i, file := range files {
 		currentFileName := filepath.Base(file)
+		baseName := strings.TrimSuffix(currentFileName, filepath.Ext(currentFileName))
 		emitProgress(TranscriptionProgress{
 			FileIndex:   i + 1,
 			TotalFiles:  totalFiles,
@@ -456,10 +454,18 @@ func (s *TranscriptionService) runTranscriptionWorkflow(options TranscriptionOpt
 		}
 
 		// Converte in WAV (16kHz, mono) temporaneo
-		tempWavPath := filepath.Join(outputDir, fmt.Sprintf("temp_transcribe_%d.wav", os.Getpid()))
-		defer os.Remove(tempWavPath) // Assicura la pulizia al termine
+		tempWavPath := filepath.Join(outputDir, fmt.Sprintf("debug_temp_%s.wav", baseName))
+		defer os.Remove(tempWavPath) // Pulizia automatica al termine
 
-		err := convertToWav(file, tempWavPath, appDir)
+		err := convertToWav(file, tempWavPath, appDir, func(pct float64) {
+			emitProgress(TranscriptionProgress{
+				FileIndex:   i + 1,
+				TotalFiles:  totalFiles,
+				CurrentFile: currentFileName,
+				Percentage:  pct,
+				Status:      "converting",
+			})
+		})
 		if err != nil {
 			emitProgress(TranscriptionProgress{
 				FileIndex:    i + 1,
@@ -479,48 +485,49 @@ func (s *TranscriptionService) runTranscriptionWorkflow(options TranscriptionOpt
 			Status:      "processing",
 		})
 
-		// Configura argomenti di sherpa-onnx in base al modello selezionato
+		// Configura argomenti di sherpa-onnx (VAD nativo: segmenta il parlato e
+		// gestisce file di lunga durata senza caricare tutto in memoria).
+		sherpaExe := filepath.Join(appDir, "bin", "sherpa-onnx-vad-with-offline-asr.exe")
+		if !fileExists(sherpaExe) {
+			emitProgress(TranscriptionProgress{
+				FileIndex:    i + 1,
+				TotalFiles:   totalFiles,
+				CurrentFile:  currentFileName,
+				Status:       "error",
+				ErrorMessage: "sherpa-onnx-vad-with-offline-asr.exe non trovato nella cartella bin.",
+			})
+			continue
+		}
+
 		sileroVadPath := filepath.Join(appDir, "models", "silero_vad.onnx")
 		var args []string
 		if options.ModelType == "parakeet-v3-multi" {
 			modelFolder := filepath.Join(appDir, "models", "sherpa-onnx-nemo-parakeet-v3")
-			encoderPath := filepath.Join(modelFolder, "encoder.int8.onnx")
-			decoderPath := filepath.Join(modelFolder, "decoder.int8.onnx")
-			joinerPath := filepath.Join(modelFolder, "joiner.int8.onnx")
-			tokensPath := filepath.Join(modelFolder, "tokens.txt")
-			
 			args = []string{
 				fmt.Sprintf("--silero-vad-model=%s", sileroVadPath),
-				fmt.Sprintf("--encoder=%s", encoderPath),
-				fmt.Sprintf("--decoder=%s", decoderPath),
-				fmt.Sprintf("--joiner=%s", joinerPath),
-				fmt.Sprintf("--tokens=%s", tokensPath),
+				fmt.Sprintf("--encoder=%s", filepath.Join(modelFolder, "encoder.int8.onnx")),
+				fmt.Sprintf("--decoder=%s", filepath.Join(modelFolder, "decoder.int8.onnx")),
+				fmt.Sprintf("--joiner=%s", filepath.Join(modelFolder, "joiner.int8.onnx")),
+				fmt.Sprintf("--tokens=%s", filepath.Join(modelFolder, "tokens.txt")),
 				"--num-threads=4",
 				tempWavPath,
 			}
 		} else if options.ModelType == "parakeet-110m" {
 			modelFolder := filepath.Join(appDir, "models", "sherpa-onnx-nemo-parakeet-110m")
-			modelPath := filepath.Join(modelFolder, "model.int8.onnx")
-			tokensPath := filepath.Join(modelFolder, "tokens.txt")
-			
 			args = []string{
 				fmt.Sprintf("--silero-vad-model=%s", sileroVadPath),
-				fmt.Sprintf("--nemo-ctc-model=%s", modelPath),
-				fmt.Sprintf("--tokens=%s", tokensPath),
+				fmt.Sprintf("--nemo-ctc-model=%s", filepath.Join(modelFolder, "model.int8.onnx")),
+				fmt.Sprintf("--tokens=%s", filepath.Join(modelFolder, "tokens.txt")),
 				"--num-threads=4",
 				tempWavPath,
 			}
 		} else {
 			modelFolder := filepath.Join(appDir, "models", "sherpa-onnx-whisper-tiny")
-			encoder := filepath.Join(modelFolder, "tiny-encoder.onnx")
-			decoder := filepath.Join(modelFolder, "tiny-decoder.onnx")
-			tokens := filepath.Join(modelFolder, "tiny-tokens.txt")
-			
 			args = []string{
 				fmt.Sprintf("--silero-vad-model=%s", sileroVadPath),
-				fmt.Sprintf("--whisper-encoder=%s", encoder),
-				fmt.Sprintf("--whisper-decoder=%s", decoder),
-				fmt.Sprintf("--tokens=%s", tokens),
+				fmt.Sprintf("--whisper-encoder=%s", filepath.Join(modelFolder, "tiny-encoder.onnx")),
+				fmt.Sprintf("--whisper-decoder=%s", filepath.Join(modelFolder, "tiny-decoder.onnx")),
+				fmt.Sprintf("--tokens=%s", filepath.Join(modelFolder, "tiny-tokens.txt")),
 				fmt.Sprintf("--whisper-language=%s", options.Language),
 				"--whisper-task=transcribe",
 				"--num-threads=4",
@@ -530,9 +537,7 @@ func (s *TranscriptionService) runTranscriptionWorkflow(options TranscriptionOpt
 
 		ctx, cancel := context.WithCancel(context.Background())
 		cmd := exec.CommandContext(ctx, sherpaExe, args...)
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			HideWindow: true, // Nasconde la finestra console su Windows
-		}
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true} // Nasconde la finestra console su Windows
 
 		s.cmdMutex.Lock()
 		s.activeCmd = cmd
@@ -558,27 +563,23 @@ func (s *TranscriptionService) runTranscriptionWorkflow(options TranscriptionOpt
 			return
 		}
 
-		// Leggi output e parziali
+		// Legge output (segmenti VAD temporizzati) e streama i parziali al frontend
 		var fullTranscriptionBuilder strings.Builder
-		
-		// Scanner per leggere stdout
 		go func() {
 			scanner := bufio.NewScanner(stdout)
 			for scanner.Scan() {
 				text := scanner.Text()
 				if strings.TrimSpace(text) != "" {
 					fullTranscriptionBuilder.WriteString(text + "\n")
-					
 					partialText := text
 					if options.OutputFormat == "txt" {
 						partialText = removeTimestamps(text)
 					}
-					
 					emitProgress(TranscriptionProgress{
 						FileIndex:   i + 1,
 						TotalFiles:  totalFiles,
 						CurrentFile: currentFileName,
-						Percentage:  50, // Progresso stimato
+						Percentage:  50,
 						Status:      "processing",
 						PartialText: partialText,
 					})
@@ -586,13 +587,11 @@ func (s *TranscriptionService) runTranscriptionWorkflow(options TranscriptionOpt
 			}
 		}()
 
-		// Leggi eventuali errori da stderr
 		var stderrBuilder strings.Builder
 		go func() {
 			_, _ = io.Copy(&stderrBuilder, stderr)
 		}()
 
-		// Attendi la fine del processo
 		cmdErr := cmd.Wait()
 		cancel()
 
@@ -601,10 +600,7 @@ func (s *TranscriptionService) runTranscriptionWorkflow(options TranscriptionOpt
 		s.cmdMutex.Unlock()
 
 		if wasCancelled {
-			emitProgress(TranscriptionProgress{
-				Status:       "error",
-				ErrorMessage: "Operazione annullata dall'utente.",
-			})
+			emitProgress(TranscriptionProgress{Status: "error", ErrorMessage: "Operazione annullata dall'utente."})
 			return
 		}
 
@@ -619,11 +615,7 @@ func (s *TranscriptionService) runTranscriptionWorkflow(options TranscriptionOpt
 			continue
 		}
 
-		// Scrivi file di trascrizione finali
 		rawText := fullTranscriptionBuilder.String()
-		baseName := strings.TrimSuffix(currentFileName, filepath.Ext(currentFileName))
-		
-		// Salva nei formati scelti
 		err = saveTranscriptionFiles(rawText, outputDir, baseName, options.OutputFormat)
 		if err != nil {
 			emitProgress(TranscriptionProgress{
@@ -670,8 +662,8 @@ func fileExists(path string) bool {
 	return !info.IsDir()
 }
 
-// Esegue la conversione tramite ffmpeg.exe (se presente) o avvisa
-func convertToWav(inputPath, outputPath, appDir string) error {
+// Esegue la conversione tramite ffmpeg.exe (se presente) o avvisa, calcolando il progresso in tempo reale
+func convertToWav(inputPath, outputPath, appDir string, onProgress func(pct float64)) error {
 	// Cerca ffmpeg in PATH o locale nella cartella bin
 	ffmpegPath, err := exec.LookPath("ffmpeg")
 	if err != nil {
@@ -686,12 +678,55 @@ func convertToWav(inputPath, outputPath, appDir string) error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow: true,
 	}
-	
-	output, err := cmd.CombinedOutput()
+
+	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		return fmt.Errorf("%w: %s", err, string(output))
+		return err
 	}
-	return nil
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	durationRegex := regexp.MustCompile(`Duration:\s*(\d{2}):(\d{2}):(\d{2}(?:\.\d+)?)`)
+	timeRegex := regexp.MustCompile(`time=\s*(\d{2}):(\d{2}):(\d{2}(?:\.\d+)?)`)
+
+	var totalSeconds float64 = 0
+
+	scanner := bufio.NewScanner(stderr)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// 1. Trova durata totale
+		if totalSeconds == 0 {
+			if matches := durationRegex.FindStringSubmatch(line); len(matches) >= 4 {
+				h, _ := strconv.ParseFloat(matches[1], 64)
+				m, _ := strconv.ParseFloat(matches[2], 64)
+				s, _ := strconv.ParseFloat(matches[3], 64)
+				totalSeconds = h*3600 + m*60 + s
+			}
+		}
+
+		// 2. Trova avanzamento temporale
+		if totalSeconds > 0 {
+			if matches := timeRegex.FindStringSubmatch(line); len(matches) >= 4 {
+				h, _ := strconv.ParseFloat(matches[1], 64)
+				m, _ := strconv.ParseFloat(matches[2], 64)
+				s, _ := strconv.ParseFloat(matches[3], 64)
+				currentSeconds := h*3600 + m*60 + s
+
+				pct := (currentSeconds / totalSeconds) * 100
+				if pct > 100 {
+					pct = 100
+				}
+				if onProgress != nil {
+					onProgress(pct)
+				}
+			}
+		}
+	}
+
+	return cmd.Wait()
 }
 
 // Salva la trascrizione in vari formati (.txt, .srt, .vtt)
@@ -763,15 +798,46 @@ func formatSecondsToVTTTime(sec float64) string {
 	return fmt.Sprintf("%02d:%02d:%02d.%03d", hours, minutes, seconds, ms)
 }
 
-// Rimuove i timestamp tipo [00:12.100 --> 00:15.300] o 154.182 -- 262.684: per produrre testo pulito
+// Rimuove i timestamp tipo [00:12.100 --> 00:15.300] o 154.182 -- 262.684: o righe SRT/VTT per produrre testo pulito
 func removeTimestamps(input string) string {
-	// Formato Whisper: [00:12.300 --> 00:15.200]
-	reWhisper := regexp.MustCompile(`\[\d{2}(?::\d{2})?:\d{2}\.\d{3}\s*-->\s*\d{2}(?::\d{2})?:\d{2}\.\d{3}\]`)
-	// Formato Parakeet/altri: 154.182 -- 262.684:
-	reParakeet := regexp.MustCompile(`\d+(?:\.\d+)?\s*--\s*\d+(?:\.\d+)?:\s*`)
-	
-	temp := reWhisper.ReplaceAllString(input, "")
-	return reParakeet.ReplaceAllString(temp, "")
+	lines := strings.Split(input, "\n")
+	var cleanLines []string
+
+	// Regex per rilevare vari tipi di timestamp o metadati temporali
+	reTimeSRTVTT := regexp.MustCompile(`\d{2}(?::\d{2})?:\d{2}[.,]\d{3}\s*-->\s*\d{2}(?::\d{2})?:\d{2}[.,]\d{3}`)
+	reTimeBrackets := regexp.MustCompile(`\[\d{2}(?::\d{2})?:\d{2}\.\d{3}\s*-->\s*\d{2}(?::\d{2})?:\d{2}\.\d{3}\]`)
+	reTimeParakeet := regexp.MustCompile(`\d+(?:\.\d+)?\s*--\s*\d+(?:\.\d+)?:\s*`)
+	reJustNumber := regexp.MustCompile(`^\s*\d+\s*$`)
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		// Salta numeri di segmento (SRT)
+		if reJustNumber.MatchString(trimmed) {
+			continue
+		}
+		// Salta righe con intervalli di tempo SRT/VTT
+		if reTimeSRTVTT.MatchString(trimmed) {
+			continue
+		}
+		// Rimuove tag tra parentesi
+		if reTimeBrackets.MatchString(line) {
+			line = reTimeBrackets.ReplaceAllString(line, "")
+		}
+		// Rimuove tag di Parakeet
+		if reTimeParakeet.MatchString(line) {
+			line = reTimeParakeet.ReplaceAllString(line, "")
+		}
+
+		finalLine := strings.TrimSpace(line)
+		if finalLine != "" {
+			cleanLines = append(cleanLines, finalLine)
+		}
+	}
+
+	return strings.Join(cleanLines, "\n")
 }
 
 // Converte l'output di sherpa con i timestamp in formato SRT standard
@@ -792,7 +858,7 @@ func convertToSRT(input string) string {
 				hrStart = "00"
 			}
 			minStart, secStart, msStart := matches[2], matches[3], matches[4]
-			
+
 			hrEnd := matches[5]
 			if hrEnd == "" {
 				hrEnd = "00"
@@ -856,7 +922,7 @@ func convertToVTT(input string) string {
 				hrStart = "00"
 			}
 			minStart, secStart, msStart := matches[2], matches[3], matches[4]
-			
+
 			hrEnd := matches[5]
 			if hrEnd == "" {
 				hrEnd = "00"
@@ -927,7 +993,7 @@ func untar(tarPath, destDir string) error {
 				return err
 			}
 			outFile.Close()
-			
+
 			// Rendi eseguibile l'exe su sistemi non Windows (anche se siamo su Windows, è buona norma)
 			if strings.HasSuffix(filename, ".exe") {
 				_ = os.Chmod(targetPath, 0755)
